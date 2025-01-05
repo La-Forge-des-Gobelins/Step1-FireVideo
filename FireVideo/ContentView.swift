@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var wsClient = WebSocketClient.instance
+    @StateObject var wsClient = WebSocketClient.instance
+    @State var currentMessage:String = ""
+    @State var receivedMessage:String = ""
     
     var body: some View {
         VideoPlayerWithOverlay(

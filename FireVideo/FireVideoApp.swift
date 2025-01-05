@@ -18,11 +18,12 @@ class WebSocketClient: ObservableObject {
     }
     
     private func setupWebSocket() {
-        let url = URL(string: "ws://192.168.2.241:8080")! // A CHANGER !!!!!
+        let url = URL(string: "ws://192.168.2.241:8080/step1")!
         let session = URLSession(configuration: .default)
         webSocket = session.webSocketTask(with: url)
         webSocket?.resume()
         receiveMessage()
+        print("🌐 WebSocket initialisé")  // Message personnalisé et facilement repérable
     }
     
     private func receiveMessage() {
@@ -50,7 +51,7 @@ class WebSocketClient: ObservableObject {
     }
     
     func sendText(route: String, data: String) {
-        let message = ["route": route, "data": data]
+        let message = ["data": data]
         if let jsonData = try? JSONEncoder().encode(message),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             webSocket?.send(.string(jsonString)) { error in
@@ -60,34 +61,48 @@ class WebSocketClient: ObservableObject {
             }
         }
     }
+    
 }
 
 struct VideoPlayerWithOverlay: View {
     let videoName: String
     let isDimmed: Bool
+    private let player: AVPlayer
+    
+    init(videoName: String, isDimmed: Bool) {
+        self.videoName = videoName
+        self.isDimmed = isDimmed
+        self.player = VideoPlayerWithOverlay.makeLoopingPlayer(for: videoName)
+        // Définir le volume initial à 0
+        self.player.volume = 0
+    }
     
     var body: some View {
         ZStack {
-            // Lecteur vidéo
-            VideoPlayer(player: makeLoopingPlayer(for: videoName))
+            // Utiliser le player créé dans init au lieu d'en créer un nouveau
+            VideoPlayer(player: player)
                 .edgesIgnoringSafeArea(.all)
+                .onChange(of: isDimmed) { newValue in
+                    player.volume = newValue ? 0 : 1
+                }
             
-            // Voile noir
             Rectangle()
                 .fill(Color.black)
-                .opacity(isDimmed ? 0.8 : 0) // Opacité élevée quand dimmed, transparente sinon
-                .animation(.easeInOut(duration: 1.0), value: isDimmed) // Animation douce
+                .opacity(isDimmed ? 0.8 : 0)
+                .animation(.easeInOut(duration: 1.0), value: isDimmed)
         }
     }
     
-    private func makeLoopingPlayer(for videoName: String) -> AVPlayer {
+    // Déplacé en méthode statique pour pouvoir l'utiliser dans init
+    private static func makeLoopingPlayer(for videoName: String) -> AVPlayer {
         if let url = Bundle.main.url(forResource: videoName, withExtension: "mp4") {
-            print("URL vidéo trouvée : \(url)")
-            let player = AVPlayer(url: url)
+            let asset = AVAsset(url: url)
+            let playerItem = AVPlayerItem(asset: asset)
+            let player = AVPlayer(playerItem: playerItem)
             
             NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
-                object: player.currentItem,
+                object: playerItem, // Changé de player.currentItem à playerItem
                 queue: .main) { _ in
                     player.seek(to: .zero)
                     player.play()
