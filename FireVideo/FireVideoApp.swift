@@ -13,12 +13,24 @@ class WebSocketClient: ObservableObject {
     private var webSocket: URLSessionWebSocketTask?
     @Published var isFireOn: Bool = false
     
+    func sendText(route: String, data: String) {
+        let message = ["data": data]
+        if let jsonData = try? JSONEncoder().encode(message),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            webSocket?.send(.string(jsonString)) { error in
+                if let error = error {
+                    print("Error sending message: \(error)")
+                }
+            }
+        }
+    }
+    
     private init() {
         setupWebSocket()
     }
     
     private func setupWebSocket() {
-        let url = URL(string: "ws://192.168.2.241:8080/step1")!
+        let url = URL(string: "ws://192.168.10.31:8080/step1")!
         let session = URLSession(configuration: .default)
         webSocket = session.webSocketTask(with: url)
         webSocket?.resume()
@@ -50,17 +62,7 @@ class WebSocketClient: ObservableObject {
         }
     }
     
-    func sendText(route: String, data: String) {
-        let message = ["data": data]
-        if let jsonData = try? JSONEncoder().encode(message),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            webSocket?.send(.string(jsonString)) { error in
-                if let error = error {
-                    print("Error sending message: \(error)")
-                }
-            }
-        }
-    }
+    
     
 }
 
