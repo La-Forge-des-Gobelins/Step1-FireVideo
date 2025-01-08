@@ -17,9 +17,6 @@ struct ContentView: View {
             videoName: "Fire-On",
             isDimmed: !wsClient.isFireOn
         )
-        .onAppear {
-            wsClient.sendText(route: "step1", data: "Application vidéo connectée")
-        }
     }
 }
 

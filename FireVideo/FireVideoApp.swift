@@ -19,7 +19,7 @@ class WebSocketClient: ObservableObject {
     }
     
     private func setupWebSocket() {
-        let url = URL(string: "ws://192.168.10.31:8080/step1")!
+        let url = URL(string: "ws://192.168.10.31:8080/step1-Feu")!
         let session = URLSession(configuration: .default)
         webSocket = session.webSocketTask(with: url)
         
@@ -29,6 +29,7 @@ class WebSocketClient: ObservableObject {
         webSocket?.resume()
         isConnected = true
         print("🌐 WebSocket initialisé")
+        sendText(route: "step1-Feu", text:"connect")
         
         // Démarrer l'écoute continue
         receiveMessage()
@@ -71,12 +72,13 @@ class WebSocketClient: ObservableObject {
                 case .string(let text):
                     print("📩 Message reçu: \(text)")
                     DispatchQueue.main.async {
-                        if text == "ping" {
+                        if text == "App - Fire On" {
                             self?.isFireOn = true
+                            print("🔥 Feu allumé")
                         } else if text == "Feu éteint" {
                             self?.isFireOn = false
                         } else if text == "ping" {
-                            self?.sendText(route: "step1", data: "Fire video pong")
+                            self?.sendText(route: "step1-Feu", text: "Fire video pong")
                        }
                     }
                 case .data(let data):
@@ -95,8 +97,8 @@ class WebSocketClient: ObservableObject {
         }
     }
     
-    func sendText(route: String, data: String) {
-        let message = ["data": data]
+    func sendText(route: String, text: String) {
+        let message = text
         if let jsonData = try? JSONEncoder().encode(message),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             webSocket?.send(.string(jsonString)) { [weak self] error in
