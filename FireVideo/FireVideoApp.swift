@@ -12,18 +12,7 @@ class WebSocketClient: ObservableObject {
     static let instance = WebSocketClient()
     private var webSocket: URLSessionWebSocketTask?
     @Published var isFireOn: Bool = false
-    
-    func sendText(route: String, data: String) {
-        let message = ["data": data]
-        if let jsonData = try? JSONEncoder().encode(message),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            webSocket?.send(.string(jsonString)) { error in
-                if let error = error {
-                    print("Error sending message: \(error)")
-                }
-            }
-        }
-    }
+    private var isConnected = false
     
     private init() {
         setupWebSocket()
@@ -33,37 +22,95 @@ class WebSocketClient: ObservableObject {
         let url = URL(string: "ws://192.168.10.31:8080/step1")!
         let session = URLSession(configuration: .default)
         webSocket = session.webSocketTask(with: url)
+        
+        // Ping périodique pour maintenir la connexion
+        startPingTimer()
+        
         webSocket?.resume()
+        isConnected = true
+        print("🌐 WebSocket initialisé")
+        
+        // Démarrer l'écoute continue
         receiveMessage()
-        print("🌐 WebSocket initialisé")  // Message personnalisé et facilement repérable
+    }
+    
+    private func startPingTimer() {
+        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            self?.sendPing()
+        }
+    }
+    
+    private func sendPing() {
+        webSocket?.sendPing { error in
+            if let error = error {
+                print("❌ Erreur de ping: \(error)")
+                self.handleDisconnection()
+            }
+        }
+    }
+    
+    private func handleDisconnection() {
+        guard isConnected else { return }
+        isConnected = false
+        
+        // Tentative de reconnexion
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            print("🔄 Tentative de reconnexion...")
+            self?.setupWebSocket()
+        }
     }
     
     private func receiveMessage() {
+        guard isConnected else { return }
+        
         webSocket?.receive { [weak self] result in
             switch result {
             case .success(let message):
+                // Traiter le message
                 switch message {
                 case .string(let text):
-                    if text == "Feu allumé" {
-                        DispatchQueue.main.async {
+                    print("📩 Message reçu: \(text)")
+                    DispatchQueue.main.async {
+                        if text == "ping" {
                             self?.isFireOn = true
-                        }
+                        } else if text == "Feu éteint" {
+                            self?.isFireOn = false
+                        } else if text == "ping" {
+                            self?.sendText(route: "step1", data: "Fire video pong")
+                       }
                     }
-                default:
+                case .data(let data):
+                    print("📩 Données reçues: \(data)")
+                @unknown default:
                     break
                 }
+                
+                // Continuer l'écoute
                 self?.receiveMessage()
+                
             case .failure(let error):
-                print("WebSocket error: \(error)")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                    self?.setupWebSocket()
+                print("❌ Erreur WebSocket: \(error)")
+                self?.handleDisconnection()
+            }
+        }
+    }
+    
+    func sendText(route: String, data: String) {
+        let message = ["data": data]
+        if let jsonData = try? JSONEncoder().encode(message),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            webSocket?.send(.string(jsonString)) { [weak self] error in
+                if let error = error {
+                    print("❌ Erreur d'envoi: \(error)")
+                    self?.handleDisconnection()
                 }
             }
         }
     }
     
-    
-    
+    deinit {
+        webSocket?.cancel(with: .normalClosure, reason: nil)
+    }
 }
 
 struct VideoPlayerWithOverlay: View {
