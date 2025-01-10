@@ -19,7 +19,7 @@ class WebSocketClient: ObservableObject {
     }
     
     private func setupWebSocket() {
-        let url = URL(string: "ws://192.168.10.31:8080/step1-Feu")!
+        let url = URL(string: "ws://192.168.10.250:8080/step1-Feu")!
         let session = URLSession(configuration: .default)
         webSocket = session.webSocketTask(with: url)
         
@@ -46,6 +46,7 @@ class WebSocketClient: ObservableObject {
             if let error = error {
                 print("❌ Erreur de ping: \(error)")
                 self.handleDisconnection()
+                self.setupWebSocket()
             }
         }
     }
@@ -118,23 +119,32 @@ class WebSocketClient: ObservableObject {
 struct VideoPlayerWithOverlay: View {
     let videoName: String
     let isDimmed: Bool
-    private let player: AVPlayer
+    @State private var player: AVPlayer
+    @State private var viewKey: Int = 0  // Pour forcer le rechargement de la vue
     
     init(videoName: String, isDimmed: Bool) {
         self.videoName = videoName
         self.isDimmed = isDimmed
-        self.player = VideoPlayerWithOverlay.makeLoopingPlayer(for: videoName)
-        // Définir le volume initial à 0
-        self.player.volume = 0
+        self._player = State(initialValue: VideoPlayerWithOverlay.makeLoopingPlayer(for: videoName))
+        self.player.volume = isDimmed ? 0 : 1.0
     }
     
     var body: some View {
         ZStack {
-            // Utiliser le player créé dans init au lieu d'en créer un nouveau
             VideoPlayer(player: player)
                 .edgesIgnoringSafeArea(.all)
+                .id(viewKey)  // Force le rechargement quand viewKey change
+                .onAppear {
+                    player.play()
+                    player.volume = isDimmed ? 0 : 1.0
+                }
                 .onChange(of: isDimmed) { newValue in
-                    player.volume = newValue ? 0 : 1
+                    if !newValue {  // Quand le feu s'allume (isDimmed devient false)
+                        viewKey += 1  // Force le rechargement
+                        player.volume = 1.0
+                    } else {
+                        player.volume = 0
+                    }
                 }
             
             Rectangle()
@@ -144,7 +154,6 @@ struct VideoPlayerWithOverlay: View {
         }
     }
     
-    // Déplacé en méthode statique pour pouvoir l'utiliser dans init
     private static func makeLoopingPlayer(for videoName: String) -> AVPlayer {
         if let url = Bundle.main.url(forResource: videoName, withExtension: "mp4") {
             let asset = AVAsset(url: url)
@@ -153,7 +162,7 @@ struct VideoPlayerWithOverlay: View {
             
             NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
-                object: playerItem, // Changé de player.currentItem à playerItem
+                object: playerItem,
                 queue: .main) { _ in
                     player.seek(to: .zero)
                     player.play()
